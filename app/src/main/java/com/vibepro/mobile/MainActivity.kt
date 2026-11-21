@@ -1884,6 +1884,7 @@ private fun convertirPhotoEnBase64(uri: Uri): String {
     )
 }
 
+
 private fun verifierAbonnementAccepte(
     utilisateur: FirebaseUser
 ) {
@@ -1893,22 +1894,94 @@ private fun verifierAbonnementAccepte(
         .get()
         .addOnSuccessListener { resultats ->
 
-            val demande = resultats.documents.firstOrNull {
-                it.getString("service") == "Abonnement lavage" &&
-                it.getString("statut") == "Accepté" &&
-                it.getString("statutCalendrier") != "Confirmé"
+            val demande = resultats.documents
+                .lastOrNull {
+                    it.getString("service") == "Abonnement lavage"
+                }
+
+            val layout = disposition()
+
+            layout.addView(titre("SUIVI DE MON ABONNEMENT"))
+
+            if (demande == null) {
+
+                layout.addView(TextView(this).apply {
+                    text = "Vous n'avez aucune demande d'abonnement pour le moment."
+                    textSize = 16f
+                    gravity = Gravity.CENTER
+                    setPadding(12, 25, 12, 25)
+                    setTextColor(Color.BLACK)
+                })
+
+            } else {
+
+                val statut = demande.getString("statut") ?: "En attente"
+                val statutCalendrier =
+                    demande.getString("statutCalendrier") ?: ""
+
+                layout.addView(TextView(this).apply {
+                    text = "Formule : ${demande.getString("formule") ?: "Non précisée"}\n" +
+                           "Véhicule : ${demande.getString("typeVehicule") ?: "Non précisé"}"
+                    textSize = 17f
+                    setTextColor(Color.BLACK)
+                    setPadding(12, 20, 12, 20)
+                })
+
+                val message = when (statut) {
+                    "Accepté" -> {
+                        if (statutCalendrier == "Confirmé") {
+                            "Votre abonnement est accepté et votre calendrier est confirmé."
+                        } else {
+                            "Bonne nouvelle ! Votre abonnement est accepté. Vous pouvez maintenant programmer vos quatre passages."
+                        }
+                    }
+
+                    "Refusé" -> {
+                        "Votre demande d'abonnement n'a pas été acceptée. Contactez Vibe Pro pour plus d'informations."
+                    }
+
+                    else -> {
+                        "Votre demande est en attente de validation par Vibe Pro. Nous vous informerons dès qu'une décision sera prise."
+                    }
+                }
+
+                layout.addView(TextView(this).apply {
+                    text = message
+                    textSize = 16f
+                    gravity = Gravity.CENTER
+                    setTextColor(Color.BLACK)
+                    setPadding(16, 20, 16, 25)
+                })
+
+                if (statut == "Accepté" &&
+                    statutCalendrier != "Confirmé"
+                ) {
+                    val programmer = bouton("PROGRAMMER MES 4 PASSAGES")
+
+                    programmer.setOnClickListener {
+                        afficherFormulaireProgrammation(
+                            utilisateur,
+                            demande.id,
+                            demande.getString("typeVehicule") ?: "",
+                            demande.getString("formule") ?: ""
+                        )
+                    }
+
+                    layout.addView(programmer)
+                }
             }
 
-            if (demande != null) {
-                afficherFormulaireProgrammation(
-                    utilisateur,
-                    demande.id,
-                    demande.getString("typeVehicule") ?: "",
-                    demande.getString("formule") ?: ""
-                )
+            val retour = bouton("RETOUR À MON ESPACE")
+            retour.setOnClickListener {
+                afficherEspaceClient(utilisateur)
             }
+
+            layout.addView(retour)
+
+            setContentView(rendreDefilant(layout))
         }
         .addOnFailureListener { erreur ->
+
             Toast.makeText(
                 this,
                 "Erreur de vérification : ${erreur.message}",
@@ -1916,6 +1989,8 @@ private fun verifierAbonnementAccepte(
             ).show()
         }
 }
+
+
 
 private fun afficherFormulaireProgrammation(
     utilisateur: FirebaseUser,
@@ -1927,76 +2002,142 @@ private fun afficherFormulaireProgrammation(
 
     layout.addView(titre("PROGRAMMER MES PASSAGES"))
 
-    layout.addView(TextView(this).apply {
+    val introduction = TextView(this).apply {
         text = """
-            Votre abonnement est accepté !
+            Félicitations ! Votre abonnement est accepté.
 
-            Type : $typeVehicule
+            Véhicule : $typeVehicule
             Formule : $formule
 
-            Choisissez vos quatre jours de passage.
+            Sélectionnez les quatre dates et heures souhaitées.
         """.trimIndent()
         textSize = 16f
-        setPadding(16, 16, 16, 20)
-    })
+        setTextColor(Color.BLACK)
+        setPadding(dp(16), dp(18), dp(16), dp(18))
+        background = GradientDrawable().apply {
+            setColor(Color.rgb(245, 248, 252))
+            cornerRadius = dp(16).toFloat()
+            setStroke(dp(1), Color.rgb(212, 175, 55))
+        }
+    }
+
+    layout.addView(introduction)
 
     val dates = MutableList(4) { "" }
     val heures = MutableList(4) { "" }
 
+    val boutonsDates = mutableListOf<TextView>()
+    val boutonsHeures = mutableListOf<TextView>()
+
     for (i in 0 until 4) {
 
-        layout.addView(titre("PASSAGE ${i + 1}"))
+        val carte = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(14), dp(14), dp(14))
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(248, 249, 251))
+                cornerRadius = dp(16).toFloat()
+                setStroke(dp(1), Color.rgb(220, 225, 232))
+            }
+        }
+
+        val numero = TextView(this).apply {
+            text = "PASSAGE ${i + 1}"
+            textSize = 17f
+            setTextColor(Color.rgb(10, 25, 50))
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setPadding(0, 0, 0, dp(12))
+        }
+
+        carte.addView(numero)
 
         val date = TextView(this).apply {
-            text = "📅 Choisir une date"
+            text = "📅  Choisir une date"
             textSize = 16f
-            setPadding(16, 18, 16, 18)
-            setTextColor(Color.WHITE)
+            setTextColor(Color.BLACK)
+            setPadding(dp(14), dp(16), dp(14), dp(16))
+            background = GradientDrawable().apply {
+                setColor(Color.WHITE)
+                cornerRadius = dp(12).toFloat()
+                setStroke(dp(2), Color.rgb(212, 175, 55))
+            }
+
             setOnClickListener {
                 val calendrier = java.util.Calendar.getInstance()
 
                 android.app.DatePickerDialog(
                     this@MainActivity,
                     { _, annee, mois, jour ->
-                        dates[i] = String.format(
+
+                        val nouvelleDate = String.format(
                             "%02d/%02d/%04d",
                             jour,
                             mois + 1,
                             annee
                         )
-                        text = "Date : ${dates[i]}"
+
+                        if (dates.withIndex().any {
+                                it.index != i &&
+                                it.value == nouvelleDate
+                            }
+                        ) {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Cette date est déjà utilisée.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            dates[i] = nouvelleDate
+                            text = "📅  $nouvelleDate"
+                        }
+
                     },
-                    calendrier.get(
-                        java.util.Calendar.YEAR
-                    ),
-                    calendrier.get(
-                        java.util.Calendar.MONTH
-                    ),
-                    calendrier.get(
-                        java.util.Calendar.DAY_OF_MONTH
-                    )
-                ).show()
+                    calendrier.get(java.util.Calendar.YEAR),
+                    calendrier.get(java.util.Calendar.MONTH),
+                    calendrier.get(java.util.Calendar.DAY_OF_MONTH)
+                ).apply {
+                    datePicker.minDate =
+                        System.currentTimeMillis() - 1000
+                }.show()
             }
         }
-        layout.addView(date)
+
+        boutonsDates.add(date)
+        carte.addView(date)
+
+        val espace = View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                1,
+                dp(12)
+            )
+        }
+        carte.addView(espace)
 
         val heure = TextView(this).apply {
-            text = "🕒 Choisir une heure"
+            text = "🕒  Choisir une heure"
             textSize = 16f
-            setPadding(16, 18, 16, 18)
-            setTextColor(Color.WHITE)
+            setTextColor(Color.BLACK)
+            setPadding(dp(14), dp(16), dp(14), dp(16))
+            background = GradientDrawable().apply {
+                setColor(Color.WHITE)
+                cornerRadius = dp(12).toFloat()
+                setStroke(dp(2), Color.rgb(212, 175, 55))
+            }
+
             setOnClickListener {
                 val maintenant = java.util.Calendar.getInstance()
 
                 android.app.TimePickerDialog(
                     this@MainActivity,
                     { _, h, m ->
+
                         heures[i] = String.format(
                             "%02d:%02d",
                             h,
                             m
                         )
-                        text = "Heure : ${heures[i]}"
+
+                        text = "🕒  ${heures[i]}"
                     },
                     maintenant.get(
                         java.util.Calendar.HOUR_OF_DAY
@@ -2008,22 +2149,45 @@ private fun afficherFormulaireProgrammation(
                 ).show()
             }
         }
-        layout.addView(heure)
+
+        boutonsHeures.add(heure)
+        carte.addView(heure)
+
+        val params = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            setMargins(0, dp(10), 0, dp(10))
+        }
+
+        layout.addView(carte, params)
     }
 
     val envoyer = bouton("ENVOYER MON CALENDRIER")
 
     envoyer.setOnClickListener {
+
         if (dates.any { it.isBlank() } ||
-            heures.any { it.isBlank() }) {
+            heures.any { it.isBlank() }
+        ) {
+            Toast.makeText(
+                this,
+                "Veuillez compléter les quatre passages.",
+                Toast.LENGTH_LONG
+            ).show()
+
+        } else if (dates.toSet().size != 4) {
 
             Toast.makeText(
                 this,
-                "Veuillez choisir les quatre dates et heures.",
+                "Chaque passage doit avoir une date différente.",
                 Toast.LENGTH_LONG
             ).show()
 
         } else {
+
+            envoyer.isEnabled = false
+
             val passages = (0 until 4).map { i ->
                 hashMapOf(
                     "date" to dates[i],
@@ -2045,15 +2209,19 @@ private fun afficherFormulaireProgrammation(
                     )
                 )
                 .addOnSuccessListener {
-    Toast.makeText(
-        this,
-        "Calendrier envoyé à Vibe Pro !",
-        Toast.LENGTH_LONG
-    ).show()
 
-    afficherEspaceClient(utilisateur)
-}
+                    Toast.makeText(
+                        this,
+                        "Votre calendrier a été envoyé à Vibe Pro !",
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    afficherEspaceClient(utilisateur)
+                }
                 .addOnFailureListener { erreur ->
+
+                    envoyer.isEnabled = true
+
                     Toast.makeText(
                         this,
                         "Erreur : ${erreur.message}",
@@ -2064,24 +2232,26 @@ private fun afficherFormulaireProgrammation(
     }
 
     layout.addView(envoyer)
-val retour = bouton("RETOUR À MON ESPACE PERSONNEL")
 
-retour.setOnClickListener {
-    afficherEspaceClient(utilisateur)
+    val retour = bouton("RETOUR À MON ESPACE PERSONNEL")
+
+    retour.setOnClickListener {
+        afficherEspaceClient(utilisateur)
+    }
+
+    layout.addView(retour)
+
+    setContentView(rendreDefilant(layout))
 }
 
-layout.addView(retour)
 
-    setContentView(
-        rendreDefilant(layout)
-    )
-}
 
 private fun afficherChoixVehiculeLavagePonctuel(
     utilisateur: FirebaseUser
 ) {
     val racine = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
+        setBackgroundColor(Color.WHITE)
     }
 
     val contenu = disposition()
@@ -2089,34 +2259,112 @@ private fun afficherChoixVehiculeLavagePonctuel(
     contenu.addView(titre("LAVAGE PONCTUEL"))
 
     contenu.addView(TextView(this).apply {
-        text = "Choisissez votre type de véhicule."
-        textSize = 17f
+        text = "UN LAVAGE À LA HAUTEUR DE VOTRE VÉHICULE"
+        textSize = 19f
         gravity = Gravity.CENTER
-        setPadding(12, 16, 12, 20)
+        setTypeface(null, android.graphics.Typeface.BOLD)
+        setTextColor(Color.rgb(10, 25, 50))
+        setPadding(dp(8), dp(12), dp(8), dp(8))
     })
 
-    val grille = creerGrille()
+    contenu.addView(TextView(this).apply {
+        text = "Sélectionnez votre véhicule pour découvrir nos prestations et nos tarifs."
+        textSize = 15f
+        gravity = Gravity.CENTER
+        setTextColor(Color.DKGRAY)
+        setPadding(dp(12), dp(8), dp(12), dp(20))
+    })
 
     val vehicules = listOf(
-        "Berline",
-        "SUV",
-        "SUV double cabine",
-        "Moto",
-        "Camion",
-        "Mini-bus",
-        "Bus"
+        "Berline" to "🚘",
+        "SUV" to "🚙",
+        "SUV double cabine" to "🛻",
+        "Moto" to "🏍️",
+        "Camion" to "🚚",
+        "Mini-bus" to "🚐",
+        "Bus" to "🚌"
     )
 
-    for (vehicule in vehicules) {
-        ajouterBoutonEnGrille(grille, vehicule) {
-            afficherFormulesLavagePonctuel(
-                utilisateur,
-                vehicule
-            )
-        }
-    }
+    for ((nom, emoji) in vehicules) {
 
-    contenu.addView(grille)
+        val carte = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(18), dp(18), dp(18), dp(18))
+
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(248, 249, 251))
+                cornerRadius = dp(16).toFloat()
+                setStroke(dp(1), Color.rgb(212, 175, 55))
+            }
+
+            isClickable = true
+            isFocusable = true
+
+            setOnClickListener {
+                afficherFormulesLavagePonctuel(
+                    utilisateur,
+                    nom
+                )
+            }
+        }
+
+        val icone = TextView(this).apply {
+            text = emoji
+            textSize = 32f
+            setPadding(0, 0, dp(16), 0)
+        }
+
+        val informations = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        val nomVehicule = TextView(this).apply {
+            text = nom
+            textSize = 17f
+            setTextColor(Color.rgb(10, 25, 50))
+            setTypeface(null, android.graphics.Typeface.BOLD)
+        }
+
+        val description = TextView(this).apply {
+            text = "Découvrir les tarifs et prestations"
+            textSize = 13f
+            setTextColor(Color.DKGRAY)
+            setPadding(0, dp(5), 0, 0)
+        }
+
+        informations.addView(nomVehicule)
+        informations.addView(description)
+
+        carte.addView(icone)
+
+        carte.addView(
+            informations,
+            LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            )
+        )
+
+        val fleche = TextView(this).apply {
+            text = "›"
+            textSize = 30f
+            setTextColor(Color.rgb(212, 175, 55))
+        }
+
+        carte.addView(fleche)
+
+        contenu.addView(
+            carte,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, dp(7), 0, dp(7))
+            }
+        )
+    }
 
     val defilement = android.widget.ScrollView(this).apply {
         isFillViewport = true
@@ -2133,14 +2381,24 @@ private fun afficherChoixVehiculeLavagePonctuel(
     )
 
     val retour = bouton("RETOUR AUX SERVICES")
+
     retour.setOnClickListener {
         afficherServices(utilisateur)
     }
 
-    racine.addView(retour)
+    racine.addView(
+        retour,
+        LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            setMargins(dp(12), dp(8), dp(12), dp(12))
+        }
+    )
 
     setContentView(racine)
 }
+
 
 
 
@@ -2250,61 +2508,176 @@ private fun afficherFormulesLavagePonctuel(
     setContentView(racine)
 }
 
+
 private fun creerGrille(): android.widget.GridLayout {
     return android.widget.GridLayout(this).apply {
         columnCount = 2
         rowCount = android.widget.GridLayout.UNDEFINED
         alignmentMode = android.widget.GridLayout.ALIGN_MARGINS
         useDefaultMargins = false
-        setPadding(8, 8, 8, 8)
+
+        setPadding(dp(4), dp(12), dp(4), dp(12))
+        setBackgroundColor(Color.WHITE)
     }
 }
+
+
 
 private fun ajouterBoutonEnGrille(
     grille: android.widget.GridLayout,
     texte: String,
     action: () -> Unit
 ) {
-    val bouton = bouton(texte)
+    val icones = mapOf(
+        "LAVAGE PONCTUEL" to "🚘",
+        "Nettoyage industriel et immeubles" to "🏢",
+        "Mécanique générale auto-moto" to "🔧",
+        "Diagnostic automobile" to "🖥️",
+        "Diagnostic visuel" to "🔍",
+        "Entretien et réparation" to "⚙️",
+        "Produits et accessoires auto" to "🛍️",
+        "Dépannage léger" to "🚗",
+        "Équipements de lavage" to "🧽",
+        "Autres activités" to "✨"
+    )
 
-    bouton.setOnClickListener {
-        action()
+    val descriptions = mapOf(
+        "LAVAGE PONCTUEL" to "Lavage professionnel",
+        "Nettoyage industriel et immeubles" to "Nettoyage professionnel",
+        "Mécanique générale auto-moto" to "Entretien et réparation",
+        "Diagnostic automobile" to "Analyse électronique",
+        "Diagnostic visuel" to "Contrôle du véhicule",
+        "Entretien et réparation" to "Maintenance automobile",
+        "Produits et accessoires auto" to "Boutique Vibe Pro",
+        "Dépannage léger" to "Assistance automobile",
+        "Équipements de lavage" to "Matériel professionnel",
+        "Autres activités" to "Nos autres services"
+    )
+
+    val carte = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER
+        setPadding(dp(10), dp(18), dp(10), dp(18))
+
+        background = GradientDrawable().apply {
+            setColor(Color.WHITE)
+            cornerRadius = dp(18).toFloat()
+            setStroke(dp(2), Color.rgb(212, 175, 55))
+        }
+
+        isClickable = true
+        isFocusable = true
+
+        setOnClickListener {
+            action()
+        }
     }
+
+    val icone = TextView(this).apply {
+        text = icones[texte] ?: "⭐"
+        textSize = 32f
+        gravity = Gravity.CENTER
+    }
+
+    val nom = TextView(this).apply {
+        text = texte
+        textSize = 14f
+        gravity = Gravity.CENTER
+        setTextColor(Color.rgb(10, 25, 50))
+        setTypeface(null, android.graphics.Typeface.BOLD)
+        setPadding(0, dp(10), 0, dp(5))
+    }
+
+    val description = TextView(this).apply {
+        text = descriptions[texte] ?: "Découvrez notre service"
+        textSize = 11f
+        gravity = Gravity.CENTER
+        setTextColor(Color.DKGRAY)
+    }
+
+    carte.addView(icone)
+    carte.addView(nom)
+    carte.addView(description)
 
     val parametres = android.widget.GridLayout.LayoutParams().apply {
         width = 0
-        height = android.widget.GridLayout.LayoutParams.WRAP_CONTENT
+        height = dp(145)
+
         columnSpec = android.widget.GridLayout.spec(
             android.widget.GridLayout.UNDEFINED,
             1f
         )
-        setMargins(8, 8, 8, 8)
+
+        setMargins(dp(6), dp(6), dp(6), dp(6))
     }
 
-    grille.addView(bouton, parametres)
+    grille.addView(carte, parametres)
 }
-private fun afficherMonCalendrierPassage(utilisateur: FirebaseUser) {
+
+
+private fun afficherMonCalendrierPassage(
+    utilisateur: FirebaseUser
+) {
+    val racine = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setBackgroundColor(Color.WHITE)
+    }
 
     val layout = disposition()
 
     layout.addView(titre("MON CALENDRIER DE PASSAGE"))
 
-    val message = TextView(this).apply {
-        text = "Chargement de votre calendrier..."
-        textSize = 16f
-        setTextColor(Color.WHITE)
+    val introduction = TextView(this).apply {
+        text = "Retrouvez ici vos quatre passages mensuels et leur état de confirmation."
+        textSize = 15f
         gravity = Gravity.CENTER
-        setPadding(16, 20, 16, 20)
+        setTextColor(Color.DKGRAY)
+        setPadding(dp(12), dp(12), dp(12), dp(20))
     }
-    layout.addView(message)
+
+    layout.addView(introduction)
+
+    val chargement = TextView(this).apply {
+        text = "Chargement de vos calendriers..."
+        textSize = 15f
+        gravity = Gravity.CENTER
+        setTextColor(Color.DKGRAY)
+        setPadding(dp(16), dp(25), dp(16), dp(25))
+    }
+
+    layout.addView(chargement)
+
+    val defilement = android.widget.ScrollView(this).apply {
+        isFillViewport = true
+        addView(layout)
+    }
+
+    racine.addView(
+        defilement,
+        LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            0,
+            1f
+        )
+    )
 
     val retour = bouton("RETOUR À MON ESPACE")
+
     retour.setOnClickListener {
         afficherEspaceClient(utilisateur)
     }
-    layout.addView(retour)
 
-    setContentView(rendreDefilant(layout))
+    racine.addView(
+        retour,
+        LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            setMargins(dp(12), dp(8), dp(12), dp(12))
+        }
+    )
+
+    setContentView(racine)
 
     db.collection("clients")
         .document(utilisateur.uid)
@@ -2313,57 +2686,183 @@ private fun afficherMonCalendrierPassage(utilisateur: FirebaseUser) {
         .get()
         .addOnSuccessListener { resultats ->
 
-            layout.removeView(message)
+            layout.removeView(chargement)
 
-            val demandesAvecCalendrier = resultats.documents.filter {
-                !it.get("joursPassage").let { passages ->
-                    (passages as? List<*>)?.isEmpty() ?: true
-                }
+            val demandes = resultats.documents.filter { document ->
+                val passages = document.get("joursPassage")
+                    as? List<*>
+
+                !passages.isNullOrEmpty()
             }
 
-            if (demandesAvecCalendrier.isEmpty()) {
-                message.text = "Aucun calendrier de passage enregistré."
-                layout.addView(message, 1)
+            if (demandes.isEmpty()) {
+
+                layout.addView(TextView(this).apply {
+                    text = "Aucun calendrier enregistré pour le moment.\n\nDès que votre abonnement sera accepté et que vous aurez envoyé vos dates, votre calendrier apparaîtra ici."
+                    textSize = 16f
+                    gravity = Gravity.CENTER
+                    setTextColor(Color.DKGRAY)
+                    setPadding(dp(18), dp(30), dp(18), dp(30))
+                    background = GradientDrawable().apply {
+                        setColor(Color.rgb(245, 248, 252))
+                        cornerRadius = dp(16).toFloat()
+                    }
+                })
+
                 return@addOnSuccessListener
             }
 
-            for (document in demandesAvecCalendrier) {
+            for (document in demandes) {
 
                 val passages = document.get("joursPassage")
-                    as? List<Map<String, Any>> ?: emptyList()
+                    as? List<*>
 
-                val confirme =
-                    document.getString("statutCalendrier") == "Confirmé"
+                val statutCalendrier =
+                    document.getString("statutCalendrier") ?: ""
 
-                val informations = TextView(this).apply {
-                    text = buildString {
-                        appendLine("Formule : ${document.getString("formule") ?: ""}")
-                        appendLine()
-                        appendLine("Statut : ${if (confirme) "Calendrier confirmé" else "En attente de confirmation"}")
-                        appendLine()
+                val confirme = statutCalendrier == "Confirmé"
 
-                        passages.forEachIndexed { index, passage ->
-                            appendLine("PASSAGE ${index + 1}")
-                            appendLine("Date : ${passage["date"] ?: ""}")
-                            appendLine("Heure : ${passage["heure"] ?: ""}")
-                            appendLine()
-                        }
-                    }
-                    textSize = 17f
-                    setTextColor(Color.WHITE)
-                    setPadding(20, 24, 20, 24)
-                    background = android.graphics.drawable.GradientDrawable().apply {
-                        setColor(Color.rgb(35, 45, 65))
-                        cornerRadius = 18f
-                        setStroke(2, Color.rgb(190, 155, 75))
+                val carte = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(16), dp(16), dp(16), dp(16))
+
+                    background = GradientDrawable().apply {
+                        setColor(Color.rgb(248, 249, 251))
+                        cornerRadius = dp(18).toFloat()
+                        setStroke(
+                            dp(2),
+                            Color.rgb(212, 175, 55)
+                        )
                     }
                 }
 
-                layout.addView(informations)
+                carte.addView(TextView(this).apply {
+                    text = "ABONNEMENT ${document.getString("formule") ?: ""}"
+                    textSize = 18f
+                    setTextColor(Color.rgb(10, 25, 50))
+                    setTypeface(
+                        null,
+                        android.graphics.Typeface.BOLD
+                    )
+                    setPadding(0, 0, 0, dp(12))
+                })
 
-                if (!confirme) {
+                carte.addView(TextView(this).apply {
+                    text = "Véhicule : ${document.getString("typeVehicule") ?: "Non précisé"}"
+                    textSize = 15f
+                    setTextColor(Color.DKGRAY)
+                })
+
+                val statut = TextView(this).apply {
+                    text = if (confirme) {
+                        "✓ CALENDRIER CONFIRMÉ PAR VIBE PRO"
+                    } else {
+                        "◷ EN ATTENTE DE CONFIRMATION"
+                    }
+
+                    textSize = 13f
+                    setTypeface(
+                        null,
+                        android.graphics.Typeface.BOLD
+                    )
+
+                    setTextColor(
+                        if (confirme) {
+                            Color.rgb(20, 125, 70)
+                        } else {
+                            Color.rgb(180, 120, 20)
+                        }
+                    )
+
+                    setPadding(0, dp(14), 0, dp(14))
+                }
+
+                carte.addView(statut)
+
+                if (passages.isNullOrEmpty()) {
+                    carte.addView(TextView(this).apply {
+                        text = "Aucun passage enregistré."
+                        setTextColor(Color.DKGRAY)
+                        textSize = 14f
+                    })
+                } else {
+
+                    passages.forEachIndexed { index, element ->
+
+                        val passage =
+                            element as? Map<*, *> ?: emptyMap<Any, Any>()
+
+                        val ligne = LinearLayout(this).apply {
+                            orientation = LinearLayout.VERTICAL
+                            setPadding(
+                                dp(12),
+                                dp(12),
+                                dp(12),
+                                dp(12)
+                            )
+
+                            background = GradientDrawable().apply {
+                                setColor(Color.WHITE)
+                                cornerRadius = dp(12).toFloat()
+                                setStroke(
+                                    dp(1),
+                                    Color.rgb(225, 225, 225)
+                                )
+                            }
+                        }
+
+                        ligne.addView(TextView(this).apply {
+                            text = "PASSAGE ${index + 1}"
+                            textSize = 16f
+                            setTextColor(Color.rgb(10, 25, 50))
+                            setTypeface(
+                                null,
+                                android.graphics.Typeface.BOLD
+                            )
+                        })
+
+                        ligne.addView(TextView(this).apply {
+                            text = "📅 Date : ${passage["date"] ?: "Non renseignée"}"
+                            textSize = 15f
+                            setTextColor(Color.DKGRAY)
+                            setPadding(0, dp(8), 0, dp(4))
+                        })
+
+                        ligne.addView(TextView(this).apply {
+                            text = "🕒 Heure : ${passage["heure"] ?: "Non renseignée"}"
+                            textSize = 15f
+                            setTextColor(Color.DKGRAY)
+                        })
+
+                        carte.addView(ligne)
+
+                        val espace = View(this).apply {
+                            layoutParams =
+                                LinearLayout.LayoutParams(
+                                    1,
+                                    dp(8)
+                                )
+                        }
+
+                        carte.addView(espace)
+                    }
+                }
+
+                if (confirme) {
+
+                    carte.addView(TextView(this).apply {
+                        text = "Votre calendrier est confirmé. Les modifications sont verrouillées."
+                        textSize = 14f
+                        setTextColor(Color.rgb(20, 125, 70))
+                        setPadding(0, dp(14), 0, dp(5))
+                    })
+
+                } else {
+
                     val modifier = bouton("MODIFIER MON CALENDRIER")
+
                     modifier.setOnClickListener {
+
                         afficherFormulaireProgrammation(
                             utilisateur,
                             document.id,
@@ -2371,19 +2870,32 @@ private fun afficherMonCalendrierPassage(utilisateur: FirebaseUser) {
                             document.getString("formule") ?: ""
                         )
                     }
-                    layout.addView(modifier)
-                } else {
-                    layout.addView(TextView(this).apply {
-                        text = "Votre calendrier est confirmé. Les modifications sont verrouillées."
-                        textSize = 15f
-                        setTextColor(Color.WHITE)
-                        setPadding(12, 12, 12, 20)
-                    })
+
+                    carte.addView(modifier)
                 }
+
+                layout.addView(
+                    carte,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        setMargins(
+                            0,
+                            dp(10),
+                            0,
+                            dp(10)
+                        )
+                    }
+                )
             }
         }
         .addOnFailureListener { erreur ->
-            message.text = "Erreur de chargement : ${erreur.message}"
+
+            chargement.text =
+                "Impossible de charger votre calendrier. ${erreur.message}"
+
+            chargement.setTextColor(Color.RED)
         }
 }
 } 
