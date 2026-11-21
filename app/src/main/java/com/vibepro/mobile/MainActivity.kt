@@ -2689,12 +2689,9 @@ private fun afficherMonCalendrierPassage(
 
             layout.removeView(chargement)
 
-            val demandes = resultats.documents.filter { document ->
-                val passages = document.get("joursPassage")
-                    as? List<*>
-
-                !passages.isNullOrEmpty()
-            }
+         val demandes = resultats.documents.filter { document ->
+    (document.get("joursPassage") as? List<*>)?.isNotEmpty() == true
+}
 
             if (demandes.isEmpty()) {
 
@@ -2715,8 +2712,8 @@ private fun afficherMonCalendrierPassage(
 
             for (document in demandes) {
 
-                val passages = document.get("joursPassage")
-                    as? List<*>
+           val passages: List<*> =
+    document.get("joursPassage") as? List<*> ?: emptyList<Any>()
 
                 val statutCalendrier =
                     document.getString("statutCalendrier") ?: ""
@@ -2780,7 +2777,7 @@ private fun afficherMonCalendrierPassage(
 
                 carte.addView(statut)
 
-                if (passages.isNullOrEmpty()) {
+             if (passages.isEmpty()) {
                     carte.addView(TextView(this).apply {
                         text = "Aucun passage enregistré."
                         setTextColor(Color.DKGRAY)
