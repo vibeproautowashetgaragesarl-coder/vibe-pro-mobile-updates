@@ -1,5 +1,6 @@
 package com.vibepro.mobile
-
+import android.graphics.drawable.GradientDrawable
+import android.view.View
 import android.app.Activity
 import android.os.Bundle
 import android.graphics.Color
